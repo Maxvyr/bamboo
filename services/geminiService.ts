@@ -1,0 +1,98 @@
+import { GoogleGenAI } from "@google/genai";
+import { BANGBOO_STYLE_PROMPT } from '../constants';
+
+const getAiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key not found");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+/**
+ * Single step: Generate the Bangboo image directly from the user's input image and the reference image.
+ */
+export const generateBangbooImage = async (
+  userImageBase64: string,
+  userImageMimeType: string,
+  mood: string,
+  style: string,
+  referenceImageBase64?: string
+): Promise<string> => {
+  const ai = getAiClient();
+
+  // Refine prompt based on selected mood
+  let moodInstruction = "";
+  if (mood !== 'default') {
+    moodInstruction = `The character should have a strictly ${mood} expression and posture.`;
+  }
+
+  let styleInstruction = "";
+  let styleKeywords = "";
+  if (style === 'flat') {
+      styleInstruction = "The design should be suitable for a 2D flat vector illustration. Emphasize shapes and colors.";
+      styleKeywords = " , flat 2D vector art, clean lines, cel shaded, vibrant colors, simple background, high quality illustration, behance style, glowing yellow ring eyes, tiny short arms, no elbows, simple nub arms, bean shaped body, chibi proportions, no mouth, no nose, black screen face, no breasts, no gender, robot body, androgynous";
+  } else {
+      styleInstruction = "The design should be suitable for a 3D cel-shaded render, matching the visual style of Zenless Zone Zero. Emphasize clean outlines, anime-style shading, and vibrant colors while maintaining 3D depth.";
+      styleKeywords = " , 3D cel shaded, anime style rendering, Zenless Zone Zero art style, clean outlines, flat shading, vibrant colors, 4k resolution, high quality 3D render, plain dark background, masterpiece, best quality, glowing yellow ring eyes on black screen face, tiny short arms, no elbows, simple nub arms, bean shaped body, chibi proportions, no mouth, no nose, no breasts, no gender, robot body, androgynous";
+  }
+
+  const fullPrompt = `${BANGBOO_STYLE_PROMPT} \n ${moodInstruction} \n ${styleInstruction} \n ${styleKeywords}`;
+
+  const parts: any[] = [];
+
+  // 1. User Image (The Subject)
+  parts.push({
+    inlineData: {
+      mimeType: userImageMimeType,
+      data: userImageBase64
+    }
+  });
+
+  // 2. Reference Image (The Style/Anatomy Guide)
+  if (referenceImageBase64) {
+    parts.push({
+      inlineData: {
+        mimeType: "image/png",
+        data: referenceImageBase64
+      }
+    });
+    parts.push({
+      text: "Use the first image as the subject to be transformed. Use the second image as a definitive reference for the 'Bangboo' character body proportions, face screen style, and rabbit-like ears. Adapt the features of the subject (first image) onto this body type."
+    });
+  } else {
+     parts.push({
+      text: "Use the provided image as the subject to be transformed into a Bangboo character."
+    });
+  }
+
+  // 3. Text Prompt
+  parts.push({
+    text: fullPrompt
+  });
+
+  // We use the pro-image-preview for high quality textures suitable for "Bangboo" aesthetics
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-image-preview',
+    contents: {
+      parts: parts
+    },
+    config: {
+      imageConfig: {
+        aspectRatio: "1:1",
+        imageSize: "1K" // 1K is standard for this model
+      }
+    }
+  });
+
+  // Extract image from response parts
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData && part.inlineData.data) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+  }
+
+  throw new Error("No image data generated.");
+};
