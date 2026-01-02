@@ -1,14 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
-import Header from './components/Header';
-import UploadZone from './components/UploadZone';
-import LoadingState from './components/LoadingState';
-import { AppStatus, GeneratedResult } from './types';
-import { generateBangbooImage } from './services/geminiService';
-import { MOOD_OPTIONS, STYLE_OPTIONS } from './constants';
-import { Download, RefreshCw, Sparkles, ChevronRight, AlertTriangle } from 'lucide-react';
-import referenceImageSrc from './prompt.png';
+'use client';
 
-const App: React.FC = () => {
+import React, { useState, useRef, useEffect } from 'react';
+import Header from '@/components/Header';
+import UploadZone from '@/components/UploadZone';
+import LoadingState from '@/components/LoadingState';
+import { AppStatus, GeneratedResult } from '@/types';
+import { generateBangbooImage } from '@/services/api';
+import { MOOD_OPTIONS, STYLE_OPTIONS } from '@/constants';
+import { Download, RefreshCw, Sparkles, ChevronRight, AlertTriangle } from 'lucide-react';
+
+export default function Home() {
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResult | null>(null);
@@ -16,21 +17,20 @@ const App: React.FC = () => {
   const [selectedMood, setSelectedMood] = useState<string>('default');
   const [selectedStyle, setSelectedStyle] = useState<string>('3d');
   const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null);
-  
-  // Ref for scrolling to result
+
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadReferenceImage = async () => {
       try {
-        const response = await fetch(referenceImageSrc);
+        const response = await fetch('/prompt.png');
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64data = reader.result as string;
           const match = base64data.match(/^data:(.+);base64,(.+)$/);
           if (match) {
-             setReferenceImageBase64(match[2]);
+            setReferenceImageBase64(match[2]);
           }
         };
         reader.readAsDataURL(blob);
@@ -42,7 +42,6 @@ const App: React.FC = () => {
   }, []);
 
   const handleFileSelect = (file: File) => {
-    // Reset state on new file
     setResult(null);
     setError(null);
     setStatus(AppStatus.IDLE);
@@ -63,13 +62,11 @@ const App: React.FC = () => {
       setStatus(AppStatus.ANALYZING);
       setError(null);
 
-      // Extract base64 data and mime type
       const match = userImage.match(/^data:(.+);base64,(.+)$/);
       if (!match) throw new Error("Invalid image data");
       const mimeType = match[1];
       const base64Data = match[2];
 
-      // Step 1: Generate directly
       const generatedImageUrl = await generateBangbooImage(
         base64Data,
         mimeType,
@@ -82,17 +79,17 @@ const App: React.FC = () => {
         imageUrl: generatedImageUrl,
         promptUsed: "Direct Image-to-Image Generation with Style Reference"
       });
-      
+
       setStatus(AppStatus.COMPLETED);
-      
-    } catch (err: any) {
+
+    } catch (err: unknown) {
       console.error(err);
       setStatus(AppStatus.ERROR);
-      setError(err.message || "Something went wrong during the process. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "Something went wrong during the process. Please try again.";
+      setError(errorMessage);
     }
   };
 
-  // Scroll to result when completed
   useEffect(() => {
     if (status === AppStatus.COMPLETED && resultRef.current) {
       resultRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -103,12 +100,12 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       {/* CRT Overlay Effect */}
       <div className="fixed inset-0 crt-overlay z-40 pointer-events-none mix-blend-overlay opacity-30"></div>
-      
+
       <Header />
       <LoadingState status={status} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 md:py-12 flex flex-col gap-12">
-        
+
         {/* Intro Section */}
         <section className="text-center space-y-4 max-w-2xl mx-auto">
           <h2 className="text-3xl md:text-5xl font-bold text-white brand-font uppercase">
@@ -120,7 +117,7 @@ const App: React.FC = () => {
         </section>
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
-          
+
           {/* Left Column: Input & Controls */}
           <div className="space-y-8">
             <div className="space-y-4">
@@ -130,22 +127,22 @@ const App: React.FC = () => {
                     Input Data
                  </h3>
                  {userImage && (
-                    <button 
-                        onClick={() => setUserImage(null)} 
+                    <button
+                        onClick={() => setUserImage(null)}
                         className="text-xs text-red-400 hover:text-red-300 transition-colors"
                     >
                         Clear Image
                     </button>
                  )}
               </div>
-              
+
               {!userImage ? (
                 <UploadZone onFileSelect={handleFileSelect} />
               ) : (
                 <div className="relative rounded-2xl overflow-hidden border border-gray-700 group">
-                    <img 
-                        src={userImage} 
-                        alt="User Input" 
+                    <img
+                        src={userImage}
+                        alt="User Input"
                         className="w-full max-h-[400px] object-cover"
                     />
                     <div className="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-sm p-3 border-t border-gray-700">
@@ -160,7 +157,7 @@ const App: React.FC = () => {
                 <span className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-xs border border-gray-700">2</span>
                 Configuration
               </h3>
-              
+
               <div className="space-y-4">
                 {/* Mood Selection */}
                 <div>
@@ -234,7 +231,7 @@ const App: React.FC = () => {
                 <span className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-xs border border-gray-700">3</span>
                 Output
             </h3>
-            
+
             <div className="flex-1 bg-gray-900/50 border border-gray-800 rounded-3xl p-2 relative overflow-hidden group" ref={resultRef}>
                 {!result ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 space-y-4">
@@ -244,9 +241,9 @@ const App: React.FC = () => {
                 ) : (
                     <div className="relative w-full h-full flex flex-col">
                          <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-black">
-                            <img 
-                                src={result.imageUrl} 
-                                alt="Generated Bangboo" 
+                            <img
+                                src={result.imageUrl}
+                                alt="Generated Bangboo"
                                 className="w-full h-auto object-contain"
                             />
                             {/* Stylized Badge */}
@@ -254,10 +251,10 @@ const App: React.FC = () => {
                                 <span className="text-xs font-bold text-[#ff5c00] uppercase tracking-widest brand-font">TYPE: EOUS</span>
                             </div>
                          </div>
-                         
+
                          <div className="mt-6 space-y-4 px-2 pb-4">
                              <div className="flex items-center gap-2">
-                                <button 
+                                <button
                                     onClick={() => {
                                         const link = document.createElement('a');
                                         link.href = result.imageUrl;
@@ -269,7 +266,7 @@ const App: React.FC = () => {
                                     <Download className="w-4 h-4" />
                                     Download
                                 </button>
-                                <button 
+                                <button
                                     onClick={handleGenerate}
                                     className="px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition-colors"
                                     title="Regenerate with same settings"
@@ -277,7 +274,7 @@ const App: React.FC = () => {
                                     <RefreshCw className="w-4 h-4" />
                                 </button>
                              </div>
-                             
+
                              <div className="bg-black/40 rounded-xl p-4 border border-gray-800/50">
                                 <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-bold">Neural Prompt Analysis</p>
                                 <p className="text-xs text-gray-400 font-mono line-clamp-3 hover:line-clamp-none transition-all cursor-help" title="Click to expand">
@@ -288,7 +285,7 @@ const App: React.FC = () => {
                     </div>
                 )}
             </div>
-            
+
             {/* Decoration Elements */}
             <div className="absolute -z-10 top-20 -right-20 w-64 h-64 bg-[#ff5c00]/5 rounded-full blur-3xl"></div>
           </div>
@@ -302,6 +299,4 @@ const App: React.FC = () => {
       </footer>
     </div>
   );
-};
-
-export default App;
+}
